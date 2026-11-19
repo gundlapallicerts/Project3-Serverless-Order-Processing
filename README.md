@@ -17,20 +17,18 @@ Build a secure, scalable, cost-conscious serverless order-processing backend on 
 
 ## Implementation Choices
 
-- Infrastructure as Code: AWS CloudFormation templates written in YAML.
+- Infrastructure as Code: AWS SAM (CloudFormation) template written in YAML.
 - Lambda language/runtime: Python 3.12.
 - Stack organization: start with one CloudFormation stack for the initial implementation.
 
-## Planned API
+## API Routes
 
-Initial endpoint proposal:
+- `GET /products` — list active products; public.
+- `POST /orders` — place an order; Cognito sign-in and an `Idempotency-Key` header are required. The request body contains `items` with `productId` and `quantity`; Lambda reads prices from DynamoDB.
+- `GET /orders` — list the signed-in customer’s orders.
+- `GET /orders/{orderId}` — retrieve one of the signed-in customer’s orders.
 
-- `GET /products` — list active products and current prices from DynamoDB; public, no sign-in required.
-- `POST /orders` — place an order; Cognito sign-in and an idempotency key are required. Retrying with the same key returns the original order.
-- `GET /orders` — list the signed-in customer’s own orders; Cognito sign-in required.
-- `GET /orders/{orderId}` — retrieve one of the signed-in customer’s orders; Cognito sign-in required.
-
-The API and DynamoDB model will be refined before implementation.
+The static Shopme page uses Cognito Hosted UI with authorization code + PKCE for sign-in. It sends the Cognito ID token to the protected API routes.
 
 ## Initial DynamoDB Access Pattern
 
@@ -79,26 +77,7 @@ A DynamoDB item represents one placed order. Lambda calculates the prices and to
 
 The Shopme storefront remains hosted by Project 1. It calls the Project 3 API over HTTPS. Use a Regional API Gateway REST API so AWS WAF can be associated directly with its stage. API Gateway uses a Cognito User Pool authorizer for protected order routes; Lambda derives the customer identity from the verified token claims.
 
-```mermaid
-flowchart LR
-    Browser[Customer browser]
-    Website[Project 1: CloudFront and S3]
-    Cognito[Amazon Cognito]
-    WAF[AWS WAF]
-    API[Amazon API Gateway REST API]
-    Lambda[AWS Lambda]
-    DB[Amazon DynamoDB]
-
-    Browser -->|Load storefront| Website
-    Website -->|Serve Shopme| Browser
-    Browser -->|Sign in| Cognito
-    Cognito -->|Return tokens| Browser
-    Browser -->|HTTPS request; token required for orders| WAF
-    WAF -->|Filter request| API
-    Cognito -.->|User Pool authorizer configuration| API
-    API -->|Route request| Lambda
-    Lambda -->|Read products; read or write orders| DB
-```
+See the [Project 3 architecture diagram](architecture/project3-architecture.md) for the request flows and current implementation gaps.
 
 ## AWS Services
 
@@ -142,21 +121,23 @@ This is a conceptual order, not a set of deployment commands.
 - Lambda calculates order totals using trusted product data; it does not accept client-calculated prices.
 - IAM permissions should follow least privilege.
 - API CORS should allow only the intended storefront origin.
+- The static storefront is a public client; it must not contain a Cognito client secret. Sign-in uses PKCE.
 
 ## Repository Structure
 
 - `architecture/` — diagrams and architecture notes.
 - `docs/` — API contract and design decisions.
 - `templates/` — AWS infrastructure templates.
-- `src/functions/orders/` — order-processing Lambda code.
-- `tests/` — automated tests.
+- `src/functions/products/`, `src/functions/create_order/`, and `src/functions/read_orders/` — Lambda handlers.
+- `tests/` — automated tests (not yet added).
 - `parameters/` — non-secret example configuration only.
 
 ## Deployment Status
 
-- [ ] Requirements and API contract reviewed.
-- [ ] Architecture and DynamoDB access patterns designed.
-- [ ] Infrastructure and Lambda code implemented.
-- [ ] Tests completed.
-- [ ] AWS deployment verified.
-- [ ] Resources deleted after the hands-on exercise.
+- [x] Architecture and DynamoDB access patterns designed.
+- [x] SAM infrastructure and Lambda handlers deployed to the learning stack.
+- [x] Public product listing and Cognito Hosted UI sign-up tested.
+- [x] Project 1 displays products from the Project 3 API.
+- [ ] Deploy the latest storefront sign-in/checkout changes and API Gateway error-response CORS settings.
+- [ ] Verify sign-in, order creation, order listing, and order detail in the browser.
+- [ ] Add automated tests and decide whether to retain or delete the learning stack.

@@ -1,0 +1,12 @@
+.DS_Store
+.env
+.env.*
+*.pem
+*.key
+.aws-sam/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+project3-sam-upload*.zip
